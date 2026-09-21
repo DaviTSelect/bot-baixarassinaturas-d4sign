@@ -5,7 +5,8 @@
 Siga a instalação do [README](README.md), incluindo os caminhos locais de Chrome e ChromeDriver. Execute os comandos dentro da pasta que contém este arquivo.
 
 - `python desktop.py`: abre a interface Tkinter.
-- `python main.py`: executa o fluxo de terminal.
+- `python main.py`: abre a interface Tkinter.
+- `python main.py --cli`: executa o fluxo de terminal.
 - `python -m pytest test -q`: executa os testes, após instalar suas dependências.
 
 O código atual de inicialização do navegador depende de `USERPROFILE` e de executáveis Windows. Não considere o terminal compatível com uma VPS Linux sem adaptar e validar essa inicialização.
@@ -14,7 +15,25 @@ O código atual de inicialização do navegador depende de `USERPROFILE` e de ex
 
 No desktop, a interface envia comandos para `Session` por uma fila. Uma thread executa a automação e devolve eventos para a interface. A sessão mantém o navegador aberto entre as operações até logout, cancelamento ou encerramento.
 
+<<<<<<< HEAD
 O login carrega a árvore pelo menu lateral. As subpastas são descobertas conforme o usuário expande os itens; ao baixar recursivamente, a sessão expande os ramos selecionados. Para cada localização, o processador percorre os documentos, verifica arquivos existentes, baixa os pendentes e realiza uma auditoria.
+=======
+```mermaid
+flowchart TD
+    A[desktop.py: interface Tkinter] --> B[Session.run: login e descoberta]
+    B --> C[Fila: expandir ou baixar seleção]
+    C --> D[CatalogDiscovery.materialize: descobrir subpastas]
+    D --> E[Session.download: uma localização por vez]
+    F[main.py --cli: Config.load e login] --> G[open_vault e process_specific_link]
+    E --> H[Processor.process_location]
+    G --> H
+    H --> I[open_folder_page: página 0, 1, 2...]
+    I --> J[process_document: UUID, disco e cache]
+    J --> K[download_selenium: baixar e validar PDF]
+    K --> L[Cache.add: persistir sucesso]
+    H --> M[Auditoria dos arquivos encontrados]
+```
+>>>>>>> ef5aff3 (Atualizando Automação)
 
 No terminal, `main.py` carrega `Config`, inicia o navegador, entra no cofre configurado e chama `process_specific_link()`. O navegador é fechado no bloco `finally`. Esse fluxo não percorre a árvore de subpastas como o desktop.
 
@@ -23,7 +42,7 @@ No terminal, `main.py` carrega `Config`, inicia o navegador, entra no cofre conf
 | Arquivo | Responsabilidade |
 |---|---|
 | [desktop.py](desktop.py) | Entrada do aplicativo gráfico |
-| [main.py](main.py) | Entrada do terminal |
+| [main.py](main.py) | Entrada da interface por padrão; terminal com `--cli` |
 | [d4sign/desktop.py](d4sign/desktop.py) | Telas, confirmação, eventos e atualização |
 | [d4sign/session.py](d4sign/session.py) | Thread, comandos, sessão e downloads selecionados |
 | [d4sign/discovery.py](d4sign/discovery.py) | Leitura e expansão do menu lateral |
@@ -55,7 +74,7 @@ DOWNLOAD_DIR=downloads
 CACHE_FILE=cache.json
 ```
 
-Depois execute `python main.py`. E-mail e senha são obrigatórios. Configure explicitamente o cofre para evitar usar os valores específicos da Central Bolsas presentes no código.
+Depois execute `python main.py --cli`. E-mail e senha são obrigatórios. Configure explicitamente o cofre para evitar usar os valores específicos da Central Bolsas presentes no código.
 
 | Variável | Padrão / efeito |
 |---|---|

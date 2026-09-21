@@ -46,7 +46,7 @@ def test_main_orquestra_fluxo_e_fecha_browser(tmp_path: Path, monkeypatch, capsy
         ),
     )
 
-    main_module.main()
+    main_module.main(["--cli"])
 
     assert browser_box["obj"].calls == ["start", "login", "open_vault", "close"]
     assert cache_box["obj"].load_calls == 1
@@ -65,5 +65,17 @@ def test_main_fecha_browser_mesmo_com_erro(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(main_module, "Processor", lambda *args: SimpleNamespace(process_specific_link=lambda: (_ for _ in ()).throw(RuntimeError("falha"))))
 
     with pytest.raises(RuntimeError, match="falha"):
-        main_module.main()
+        main_module.main(["--cli"])
     assert browser.calls[-1] == "close"
+
+
+def test_main_abre_interface_por_padrao(monkeypatch):
+    from d4sign import desktop
+
+    calls = []
+    monkeypatch.setattr(desktop, "main", lambda: calls.append("desktop"))
+    monkeypatch.setattr(main_module, "run_cli", lambda: pytest.fail("Terminal iniciado sem --cli"))
+
+    main_module.main([])
+
+    assert calls == ["desktop"]

@@ -7,7 +7,7 @@ from d4sign.cache import Cache
 from d4sign.processor import Processor
 
 
-def main():
+def run_cli():
 
     config = Config.load()
 
@@ -71,6 +71,20 @@ def main():
     finally:
 
         browser.close()
+
+
+def main(argv=None):
+    import argparse
+
+    parser = argparse.ArgumentParser(description="D4Sign Central Bolsas")
+    parser.add_argument("--cli", action="store_true", help="Executar no terminal sem abrir a interface")
+    args = parser.parse_args(argv)
+    if args.cli:
+        run_cli()
+    else:
+        from d4sign.desktop import main as desktop_main
+
+        desktop_main()
 
 
 if __name__ == "__main__":

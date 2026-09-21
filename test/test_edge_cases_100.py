@@ -803,6 +803,7 @@ def test_processor_download_selenium_exception_retry_and_timeout(tmp_path, monke
 # ---------------------------------------------------------------------------
 
 def test_main_module_executes_guard(monkeypatch, tmp_path):
+    monkeypatch.setattr("sys.argv", ["main.py", "--cli"])
     import d4sign.config as config_mod
     import d4sign.browser as browser_mod
     import d4sign.cache as cache_mod

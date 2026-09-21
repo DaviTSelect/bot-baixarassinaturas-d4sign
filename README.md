@@ -9,8 +9,10 @@ Use Windows e Python 3.12, a versão usada pelo workflow do projeto. No diretór
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe desktop.py
+.\.venv\Scripts\python.exe main.py
 ```
+
+`python main.py` abre a interface desktop. `python desktop.py` continua disponível como alternativa. Para executar a automação pelo terminal, use `python main.py --cli`.
 
 O código atual exige estes arquivos no perfil do usuário:
 
