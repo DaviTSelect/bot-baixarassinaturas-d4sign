@@ -59,16 +59,16 @@ class Config:
                 "https://secure.d4sign.com.br",
             ).rstrip("/"),
 
-            # CENTRAL BOLSAS
+           
             vault_id=os.getenv(
                 "D4SIGN_VAULT_ID",
-                "1288308",
+                
             ),
 
-            # UUID da Central Bolsas
+            # UUID 
             vault_uuid=os.getenv(
                 "D4SIGN_VAULT_UUID",
-                "e1334fa1-ccc7-4963-ae06-ec8ee1c93b62",
+                
             ),
 
             email=email,
