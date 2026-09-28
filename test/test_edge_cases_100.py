@@ -89,7 +89,7 @@ def test_browser_start_cdp_exception_and_close_quit_exception(tmp_path, monkeypa
 
     driver = Driver()
     monkeypatch.setattr(browser_module, "Options", Options)
-    monkeypatch.setattr(browser_module, "Service", lambda path: object())
+    monkeypatch.setattr(browser_module, "Service", lambda executable_path: object())
     monkeypatch.setattr(browser_module.ChromeDriverManager, "install", lambda self: "driver")
     monkeypatch.setattr(browser_module.webdriver, "Chrome", lambda **kwargs: driver)
 

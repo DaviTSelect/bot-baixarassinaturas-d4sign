@@ -113,7 +113,7 @@ def test_init_e_current_driver(tmp_path: Path):
 def test_start_configura_chrome(tmp_path: Path, monkeypatch):
     fake_driver = FakeDriver()
     monkeypatch.setattr(browser_module, "Options", FakeOptions)
-    monkeypatch.setattr(browser_module, "Service", lambda path: ("service", path))
+    monkeypatch.setattr(browser_module, "Service", lambda executable_path: ("service", executable_path))
     monkeypatch.setattr(browser_module.ChromeDriverManager, "install", lambda self: "/fake/chromedriver")
     monkeypatch.setattr(browser_module.webdriver, "Chrome", lambda **kwargs: fake_driver)
 
