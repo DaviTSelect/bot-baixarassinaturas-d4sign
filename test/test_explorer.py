@@ -86,11 +86,19 @@ def test_review_refresh_and_invalid_navigation():
         model.navigate('unknown')
 
 
-@pytest.fixture
-def app(monkeypatch):
+@pytest.fixture(scope='module')
+def tk_root():
     import tkinter as tk
-    from d4sign.desktop import Desktop
+    # Use one Tcl interpreter per module; widgets are isolated per test.
     root = tk.Tk()
+    yield root
+    root.destroy()
+
+
+@pytest.fixture
+def app(monkeypatch, tk_root):
+    from d4sign.desktop import Desktop
+    root = tk_root
     root.withdraw()
     monkeypatch.setattr(Desktop, 'check', lambda self: None)
     application = Desktop(root)
@@ -100,7 +108,8 @@ def app(monkeypatch):
     application.progress.stop()
     for callback in root.tk.splitlist(root.tk.call('after', 'info')):
         root.after_cancel(callback)
-    root.destroy()
+    for child in root.winfo_children():
+        child.destroy()
 
 
 def test_native_checkbox_opens_no_download_and_name_opens_no_selection(app):
@@ -159,7 +168,7 @@ def test_search_pagination_and_empty_directory(app):
     assert len(app.explorer.row_checks) == 40
 
 
-@pytest.mark.parametrize('size', ['960x850', '440x700'])
+@pytest.mark.parametrize('size', ['960x850', '440x640'])
 def test_compact_layout_keeps_download_action_visible(app, size):
     app.explorer_state.nodes['1:a'].name = 'Uma pasta com nome bastante longo para testar quebra de linha ' * 3
     app.explorer_state.toggle('1:a')
@@ -173,3 +182,17 @@ def test_compact_layout_keeps_download_action_visible(app, size):
     assert button.winfo_rootx() >= app.root.winfo_rootx()
     assert button.winfo_rootx() + button.winfo_width() <= app.root.winfo_rootx() + app.root.winfo_width()
     assert button.winfo_rooty() + button.winfo_height() <= app.root.winfo_rooty() + app.root.winfo_height()
+    assert app.explorer.canvas.winfo_height() >= 60
+
+
+def test_keyboard_space_selects_without_starting_download(app):
+    app.root.deiconify()
+    app.root.update()
+    check = app.explorer.row_checks['1:a']
+    check.focus_force()
+    app.root.update()
+    check.event_generate('<KeyPress-space>')
+    app.root.update()
+    assert app.explorer_state.selected == {'1:a'}
+    assert app.explorer_state.current is None
+    assert app.session.commands.empty()

@@ -20,7 +20,7 @@ def configure_theme(root):
     root.configure(background=COLORS['background'])
     style.configure('.', font=('Segoe UI', 10), background=COLORS['background'],
                     foreground=COLORS['text'])
-    style.configure('TButton', padding=(10, 7), background=COLORS['surface'])
+    style.configure('TButton', padding=(8, 5), width=0, background=COLORS['surface'])
     style.map('TButton', background=[('active', COLORS['hover'])],
               bordercolor=[('focus', COLORS['primary'])])
     style.configure('Primary.TButton', background=COLORS['primary'], foreground='white')
@@ -43,10 +43,12 @@ class FolderExplorer(ttk.Frame):
         self.state, self.on_open, self.on_change = state, on_open, on_change
         self.busy = False
         self.row_checks = {}
+        self.folder_icon = tk.PhotoImage(master=self, width=20, height=18)
+        for rectangle in [(2, 3, 8, 4), (2, 3, 3, 15), (8, 4, 10, 5),
+                          (10, 5, 18, 6), (17, 5, 18, 15), (2, 14, 18, 15), (3, 6, 17, 7)]:
+            self.folder_icon.put(COLORS['muted'], to=rectangle)
         self.crumbs = ttk.Frame(self)
-        self.crumbs.pack(fill='x', pady=(0, 8))
         tools = ttk.Frame(self)
-        tools.pack(fill='x')
         ttk.Label(tools, text='Buscar pasta neste nível', style='Muted.TLabel').pack(anchor='w')
         search_row = ttk.Frame(tools)
         search_row.pack(fill='x', pady=4)
@@ -61,9 +63,7 @@ class FolderExplorer(ttk.Frame):
         self.all_var = tk.BooleanVar()
         self.all_check = ttk.Checkbutton(self, text='Selecionar pastas desta página',
                                          variable=self.all_var, command=self.select_visible)
-        self.all_check.pack(anchor='w', pady=6)
         container = ttk.Frame(self)
-        container.pack(fill='both', expand=True)
         self.canvas = tk.Canvas(container, background=COLORS['surface'], highlightthickness=1,
                                 highlightbackground=COLORS['border'], height=220, takefocus=False)
         scrollbar = ttk.Scrollbar(container, command=self.canvas.yview)
@@ -77,13 +77,16 @@ class FolderExplorer(ttk.Frame):
         self.canvas.bind('<MouseWheel>', self.wheel)
         self.rows.bind('<MouseWheel>', self.wheel)
         self.pagination = ttk.Frame(self)
-        self.pagination.pack(fill='x', pady=6)
         self.previous = ttk.Button(self.pagination, text='Anterior', command=lambda: self.turn_page(-1))
         self.previous.pack(side='left')
         self.count = ttk.Label(self.pagination, style='Muted.TLabel')
         self.count.pack(side='left', padx=8)
         self.next = ttk.Button(self.pagination, text='Próxima', command=lambda: self.turn_page(1))
         self.next.pack(side='right')
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(3, weight=1)
+        for row, child in enumerate([self.crumbs, tools, self.all_check, container, self.pagination]):
+            child.grid(row=row, column=0, sticky='nsew' if child is container else 'ew', pady=3)
         self.bind('<Configure>', self.layout_crumbs)
 
     def wheel(self, event):
@@ -156,7 +159,7 @@ class FolderExplorer(ttk.Frame):
             check.configure(state='disabled' if self.busy or inherited else 'normal')
             self.row_checks[node.key] = check
             # A wrapping native button keeps long folder names readable on narrow windows.
-            button = tk.Button(row, text='▱  ' + node.name, anchor='w', relief='flat',
+            button = tk.Button(row, text='  ' + node.name, image=self.folder_icon, compound='left', anchor='w', relief='flat',
                                background=COLORS['selected'] if selected else COLORS['surface'],
                                foreground=COLORS['text'], activebackground=COLORS['hover'],
                                font=('Segoe UI', 11), cursor='hand2', padx=8, pady=6,
@@ -168,7 +171,11 @@ class FolderExplorer(ttk.Frame):
             button.bind('<Return>', lambda event, k=node.key: self.navigate(k))
             button.configure(state='disabled' if self.busy else 'normal')
             detail = 'Cofre' if self.state.parents[node.key] is None else 'Pasta'
-            detail += f' • {len(node.children)} subpastas' if node.loaded else ' • Abrir para ver subpastas'
+            if node.loaded:
+                count = len(node.children)
+                detail += f' • {count} ' + ('subpasta' if count == 1 else 'subpastas')
+            else:
+                detail += ' • Abrir para ver subpastas'
             if inherited:
                 detail = 'Incluída pela seleção de ' + self.state.nodes[inherited].name
             elif self.state.reviewing:
@@ -205,6 +212,14 @@ class FolderExplorer(ttk.Frame):
         self.all_check.configure(state='disabled' if self.busy or not keys else 'normal')
         total = len(self.state.results())
         pages = max(1, (total + self.state.page_size - 1) // self.state.page_size)
+        if pages > 1:
+            self.pagination.grid()
+        else:
+            self.pagination.grid_remove()
+        if self.state.search:
+            self.clear_search.pack(side='left', padx=4, before=self.refresh_button)
+        else:
+            self.clear_search.pack_forget()
         self.count.configure(text=f'{total} locais • Página {self.state.page + 1} de {pages}')
         self.previous.configure(state='normal' if self.state.page and not self.busy else 'disabled')
         self.next.configure(state='normal' if self.state.page + 1 < pages and not self.busy else 'disabled')
