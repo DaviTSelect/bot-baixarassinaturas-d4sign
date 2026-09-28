@@ -1,5 +1,7 @@
 """One worker owns the browser from login until logout."""
 import contextlib
+import logging
+import traceback
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -75,18 +77,29 @@ class Session:
                             if command == 'refresh':
                                 roots = discovery.load()
                                 self.events.put(('catalog', deepcopy(roots)))
+                            elif command == 'refresh_level':
+                                current, selected = data
+                                refreshed = self.refresh_catalog(browser, discovery, current, selected)
+                                discovery, roots = refreshed, refreshed.roots
+                                self.events.put(('catalog', deepcopy(roots)))
                             elif command == 'expand':
                                 node = discovery.expand(data)
                                 self.events.put(('branch', deepcopy(node)))
                             elif command == 'download':
                                 selected, recursive, destination = data
+                                if not selected or any(key not in discovery.nodes for key in selected):
+                                    raise ValueError('A seleção contém uma localização indisponível.')
                                 discovery.materialize(selected, recursive)
                                 total = self.download(browser, roots, selected, recursive, destination)
                                 if self.cancel_requested:
                                     self.events.put(('cancelled', 'Download cancelado. O Chrome foi encerrado e a sessão foi finalizada.'))
                                 else:
                                     self.events.put(('catalog', deepcopy(roots)))
-                                    self.events.put(('done', f'Concluído: {total.downloaded} baixados, {total.cached} em cache, {total.errors} erros.'))
+                                    kind = 'done_warning' if total.errors else 'done'
+                                    message = ('Download concluído com pendências.' if total.errors else
+                                               'Download concluído com sucesso.')
+                                    self.events.put((kind, f'{message} {total.downloaded} arquivos baixados, '
+                                                      f'{total.cached} já disponíveis, {total.errors} falhas.'))
                         except Exception as exc:
                             # A failed refresh invalidates the catalog; require a fresh login.
                             if command == 'refresh':
@@ -94,19 +107,51 @@ class Session:
                             if command == 'download' and self.cancel_requested:
                                 self.events.put(('cancelled', 'Download cancelado. O Chrome foi encerrado e a sessão foi finalizada.'))
                             else:
-                                self.events.put(('error', str(exc)))
+                                self.report_error(exc)
+                                message = ('Não foi possível preparar o download.' if command == 'download'
+                                           else 'Não foi possível carregar esta pasta.')
+                                self.events.put(('error', message + ' Tente novamente.'))
                 finally:
                     if not self._browser_close_requested:
                         browser.close()
         except Exception as exc:
-            self.events.put(('session_error', f'Não foi possível carregar sua conta: {exc}'))
+            self.report_error(exc)
+            self.events.put(('session_error', 'Não foi possível carregar sua conta. Confira suas credenciais e conexão e entre novamente.'))
         finally:
             self.browser = None
             self.config = replace(self.config, password='')
             self.events.put(('closed', None))
 
+    def report_error(self, exc):
+        logging.getLogger(__name__).exception('Falha na sessão D4Sign')
+        self.events.put(('log', ''.join(traceback.format_exception(exc))))
+
+    def refresh_catalog(self, browser, discovery, current, selected):
+        """Rebuild only paths needed by the current location and the selection.
+
+        Keep the previous catalog if any request fails. Refreshing starts at the
+        sidebar because the site has no independent, reliable branch reload API.
+        """
+        refreshed = CatalogDiscovery(browser, lambda msg: self.events.put(('status', msg)))
+        refreshed.load()
+        for key in dict.fromkeys([current, *selected]):
+            if key is None:
+                continue
+            chain, parent = [key], discovery.parents.get(key)
+            while parent:
+                chain.insert(0, parent)
+                parent = discovery.parents.get(parent)
+            for ancestor in chain:
+                if ancestor not in refreshed.nodes:
+                    break  # Removed or no longer accessible in this account.
+                if ancestor != key or key == current:
+                    refreshed.expand(ancestor)
+        return refreshed
+
     def download(self, browser, roots, selected, recursive, destination):
         paths = location_paths(roots)
+        if not selected or any(key not in paths for key in selected):
+            raise ValueError('Seleção inválida ou indisponível.')
         nodes = selected_locations(roots, selected, recursive)
         if not nodes:
             raise ValueError('Selecione pelo menos um cofre ou pasta.')
@@ -115,6 +160,24 @@ class Session:
         cache = Cache(destination / '.d4sign-cache.json')
         cache.load()
         total = Statistics()
+        expected = 0
+        for index, node in enumerate(nodes, 1):
+            self.events.put(('status', f'Contando documentos {index}/{len(nodes)}: {paths[node.key]}'))
+            browser.config = replace(self.config, vault_id=node.vault_id, vault_uuid=node.uuid,
+                                     location_url=node.url)
+            count = browser.document_total(node.uuid)
+            if not isinstance(count, int):
+                expected = None
+            elif expected is not None:
+                expected += count
+
+        def report_progress(stats):
+            self.events.put(('download_progress', (
+                expected, total.downloaded + stats.downloaded,
+                total.cached + stats.cached, total.errors + stats.errors,
+            )))
+
+        report_progress(Statistics())
         for index, node in enumerate(nodes, 1):
             self.events.put(('status', f'Baixando {index}/{len(nodes)}: {paths[node.key]}'))
             config = replace(self.config, vault_id=node.vault_id, vault_uuid=node.uuid,
@@ -123,8 +186,10 @@ class Session:
             browser.config = config
             browser.current_driver.execute_cdp_cmd('Page.setDownloadBehavior', {'behavior': 'allow', 'downloadPath': str(destination)})
             processor = Processor(config, browser, Downloader(config, browser), cache)
+            processor.progress = report_progress
             stats = processor.process_location(node.uuid, node.name, destination / paths[node.key])
             total.add(stats)
             if processor.last_audit and not processor.last_audit['complete']:
                 total.errors += len(processor.last_audit['missing']) + len(processor.last_audit['duplicate_uuids'])
+        report_progress(Statistics())
         return total

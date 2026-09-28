@@ -578,6 +578,21 @@ class D4SignBrowser:
 # PÁGINA DA PASTA
 # =========================================================
 
+    def document_total(self, folder_uuid):
+        """Read the site's document count for this location, not just one page."""
+        self.open_folder_page(folder_uuid, 0)
+        elements = self.current_driver.find_elements(
+            By.CSS_SELECTOR,
+            '[data-original-title="Total de documentos"] b, '
+            '[title="Total de documentos"] b',
+        )
+        for element in elements:
+            value = element.text.strip()
+            digits = value.replace('.', '').replace(',', '').replace(' ', '').replace('\u00a0', '')
+            if digits.isdecimal():
+                return int(digits)
+        return None
+
     def open_folder_page(
         self,
         folder_uuid: str,

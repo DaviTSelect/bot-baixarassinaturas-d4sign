@@ -72,6 +72,7 @@ def test_session_login_failure_closes_browser(monkeypatch, tmp_path):
     worker = session.Session(desktop_config('a', 'b', str(tmp_path)), Queue())
     worker.run()
     browser.close.assert_called_once()
+    assert worker.events.get()[0] == 'log'
     assert worker.events.get()[0] == 'session_error'
     assert worker.events.get()[0] == 'closed'
     assert worker.config.password == ''
@@ -144,25 +145,27 @@ def test_desktop_login_and_selection_widgets(monkeypatch):
         roots = tree()
         roots[0].children[0].loaded = False
         app.show_catalog(roots)
-        assert app.tree.item('42:' + ROOT)['text'] == 'Financeiro'
-        app.tree.focus('42:' + CHILD)
-        app.expand()
+        assert '42:' + ROOT in app.explorer.row_checks
+        app.navigate('42:' + ROOT)
+        assert app.explorer_state.current == '42:' + ROOT
+        assert not app.explorer_state.selected
+        app.navigate('42:' + CHILD)
         assert worker.commands.get_nowait() == ('expand', '42:' + CHILD)
         roots[0].children[0].loaded = True
         app.show_branch(roots[0].children[0])
-        app.tree.selection_set('42:' + CHILD)
+        app.explorer_state.toggle('42:' + CHILD)
         app.start()
         kind, data = worker.commands.get_nowait()
         assert kind == 'download'
         assert data[0] == ['42:' + CHILD] and data[1] is True
         app.set_busy(False)
-        app.recursive.set(False)
         app.start(True)
         assert worker.commands.get_nowait()[1][:2] == (['42:' + ROOT], True)
         app.set_busy(False)
         app.close()
         worker.close.assert_called_once()
     finally:
+        app.progress.stop()
         for callback in root.tk.splitlist(root.tk.call('after', 'info')):
             root.after_cancel(callback)
         root.destroy()
@@ -187,5 +190,5 @@ def test_download_summary_is_user_friendly_and_has_no_technical_url(monkeypatch)
         assert 'uuid' not in summary.lower()
     finally:
         for callback in root.tk.splitlist(root.tk.call('after', 'info')):
-            root.after_cancel(callback)
+            root.tk.call('after', 'cancel', callback)
         root.destroy()

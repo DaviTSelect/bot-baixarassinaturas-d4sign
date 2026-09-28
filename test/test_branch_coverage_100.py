@@ -50,7 +50,7 @@ def test_browser_branch_headless_false_close_sem_driver_e_login_body_normal(tmp_
         def add_experimental_option(self, name, value): pass
     driver = BrowserDriver()
     monkeypatch.setattr(browser_module, "Options", Options)
-    monkeypatch.setattr(browser_module, "Service", lambda path: object())
+    monkeypatch.setattr(browser_module, "Service", lambda executable_path: object())
     monkeypatch.setattr(browser_module.ChromeDriverManager, "install", lambda self: "driver")
     monkeypatch.setattr(browser_module.webdriver, "Chrome", lambda **kwargs: driver)
 

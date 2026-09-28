@@ -26,13 +26,21 @@ O ChromeDriver deve ser compatível com esse Chrome. Apenas instalar o Chrome no
 ## Usar o desktop
 
 1. Informe e-mail e senha e clique em **Entrar**.
-2. Expanda os cofres e pastas que deseja consultar.
-3. Selecione os itens; use Ctrl para selecionar mais de um.
-4. Escolha o destino e se deseja incluir subpastas.
-5. Clique em **Baixar selecionados** ou **Baixar tudo da conta** e confirme o resumo.
-6. Acompanhe o resultado e as mensagens de erro.
+2. Clique no nome de um cofre ou pasta para abrir. Use **Início** ou os níveis do caminho para voltar.
+3. Marque as caixas das pastas que deseja baixar. A seleção permanece ao navegar.
+4. Confira a quantidade selecionada e use **Escolher pasta** para alterar o destino em **Salvar em (subpastas incluídas)**.
+5. Clique em **Baixar pasta** ou **Baixar N pastas**. Não há confirmação adicional.
+6. Acompanhe o resultado na própria tela. Em caso de falha, use **Tentar novamente**.
 
-A árvore carrega subpastas sob demanda. O resumo mostra as pastas e os destinos locais. **Cancelar download** encerra a sessão; entre novamente para outra operação.
+As subpastas são carregadas sob demanda. Listas grandes mostram 40 pastas por página; a caixa de seleção geral afeta somente essa página. **Atualizar** recarrega o nível atual e preserva as seleções ainda disponíveis.
+
+Por padrão, o download inclui subpastas. Quando um pai está selecionado, seus descendentes aparecem incluídos e não precisam ser marcados novamente. **Cancelar download** encerra a sessão; entre novamente para outra operação.
+
+A tela principal mostra as ações de navegação e download e o destino dos arquivos. As subpastas são sempre incluídas. A consulta de atualização é automática; os detalhes técnicos ficam no log. O indicador de atividade é indeterminado: não representa uma porcentagem de documentos.
+
+Os botões têm contornos finos e suaves, com destaque de foco ao navegar pelo teclado. As ações usam laranja e os botões de pasta usam fundo branco.
+
+O explorador mostra pastas, não a lista de documentos. Uma pasta sem subpastas ainda pode conter PDFs.
 
 O destino padrão é `~/Downloads/D4Sign`. A estrutura de cofres e pastas é mantida, e os PDFs recebem nomes como `Contrato - UUID.pdf`. Nomes incompatíveis com Windows são ajustados.
 
