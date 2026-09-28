@@ -20,11 +20,13 @@ class Processor:
         browser,
         downloader,
         cache,
+        progress=None,
     ):
         self.config = config
         self.browser = browser
         self.downloader = downloader
         self.cache = cache
+        self.progress = progress
 
         # Índice usado para detectar PDFs duplicados por conteúdo sem
         # recalcular hash de todos os arquivos a cada documento.
@@ -358,6 +360,9 @@ class Processor:
                     stats.skipped += 1
                 else:
                     stats.errors += 1
+
+                if self.progress is not None:
+                    self.progress(stats)
 
             # =================================================
             # PRÓXIMA PÁGINA

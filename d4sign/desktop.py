@@ -6,8 +6,7 @@ import subprocess
 import sys
 from threading import Thread
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-from tkinter.scrolledtext import ScrolledText
+from tkinter import ttk, messagebox, filedialog
 
 from .config import Config
 from .cache import Cache
@@ -70,7 +69,8 @@ class Desktop:
         for row, (name, entry) in enumerate([("E-mail", self.email), ("Senha", self.password)]):
             ttk.Label(self.login_frame, text=name).grid(row=row, column=0, padx=(0, 12), pady=5)
             entry.grid(row=row, column=1, sticky="ew", pady=5)
-        self.login_button = ttk.Button(self.login_frame, text="Entrar", command=self.login)
+        self.login_button = ttk.Button(self.login_frame, text="Entrar", command=self.login,
+                                       style="Primary.TButton")
         self.login_button.grid(row=2, column=1, sticky="e")
         self.password.bind("<Return>", lambda event: self.login())
         self.selection_frame = ttk.Frame(self.pages)
@@ -79,21 +79,18 @@ class Desktop:
         self.explorer = FolderExplorer(self.selection_frame, self.explorer_state,
                                        self.navigate, self.selection_changed, self.refresh)
         self.explorer.grid(row=1, column=0, sticky='nsew')
-        self.destination_options = ttk.Frame(self.selection_frame)
-        self.destination_options.grid(row=2, column=0, sticky='ew', pady=3)
-        self.recursive = tk.BooleanVar(value=True)
-        recursive = ttk.Checkbutton(self.destination_options, text="Incluir todas as subpastas",
-                                     variable=self.recursive, command=self.recursion_changed)
-        recursive.pack(anchor="w", pady=4)
-        ttk.Label(self.destination_options, text="Salvar documentos em", style="Muted.TLabel").pack(anchor="w")
-        destination = ttk.Frame(self.destination_options)
-        destination.pack(fill="x", pady=(4, 8))
-        self.destination = ttk.Entry(destination)
-        self.destination.insert(0, str(Path.home() / "Downloads" / "D4Sign"))
+        self.destination = tk.StringVar(value=str(Path.home() / "Downloads" / "D4Sign"))
         Cache(Path(self.destination.get()) / ".d4sign-cache.json")
-        self.destination.pack(side="left", fill="x", expand=True)
-        browse = ttk.Button(destination, text="Escolher destino…", command=self.browse)
-        browse.pack(side="right", padx=(8, 0))
+        destination_frame = ttk.Frame(self.selection_frame)
+        destination_frame.grid(row=2, column=0, sticky='ew', pady=3)
+        destination_frame.columnconfigure(0, weight=1)
+        ttk.Label(destination_frame, text="Salvar em (subpastas incluídas)",
+                  style="Muted.TLabel").grid(row=0, column=0, columnspan=2, sticky='w')
+        self.destination_entry = ttk.Entry(destination_frame, textvariable=self.destination)
+        self.destination_entry.grid(row=1, column=0, sticky='ew', pady=4)
+        self.destination_button = ttk.Button(destination_frame, text="Escolher pasta",
+                                             command=self.choose_destination)
+        self.destination_button.grid(row=1, column=1, padx=(8, 0), pady=4)
         self.selection_bar = ttk.Frame(self.selection_frame, padding=(0, 8))
         self.selection_bar.grid(row=3, column=0, sticky='ew', pady=3)
         self.selection_text = tk.StringVar()
@@ -101,61 +98,40 @@ class Desktop:
                   font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
         actions = ttk.Frame(self.selection_bar)
         actions.pack(fill="x")
-        review = ttk.Button(actions, text="Revisar", command=self.review_selection)
-        review.pack(side="left")
-        clear = ttk.Button(actions, text="Limpar seleção", command=self.clear_selection)
-        clear.pack(side="left", padx=4)
         self.download_button = ttk.Button(actions, text="Baixar pasta", command=self.start,
                                           style="Primary.TButton")
         self.download_button.pack(side="right")
         footer = ttk.Frame(self.selection_frame)
         footer.grid(row=4, column=0, sticky='ew', pady=3)
-        self.destination_toggle = ttk.Button(footer, text="Destino e subpastas", command=self.toggle_destination)
-        self.destination_toggle.pack(side="left")
         logout = ttk.Button(footer, text="Sair da conta", command=self.logout)
         self.logout_button = logout
         logout.pack(side="right")
         self.cancel_button = ttk.Button(footer, text="Cancelar download", command=self.cancel_download, state="disabled")
         self.cancel_button.pack(side="right")
-        self.controls = [self.destination, browse, recursive, review, clear, self.download_button, logout, self.destination_toggle]
+        self.controls = [self.download_button, logout, self.destination_entry, self.destination_button]
         self.status = tk.StringVar(value="Informe suas credenciais. O navegador ficará oculto e a senha não será salva.")
         self.status_label = ttk.Label(frame, textvariable=self.status, wraplength=780)
         self.status_label.grid(row=2, column=0, sticky='ew', pady=(8, 4))
         frame.bind('<Configure>', lambda event: self.status_label.configure(wraplength=max(280, event.width - 40)))
         self.progress = ttk.Progressbar(frame, mode="indeterminate")
         self.progress.grid(row=3, column=0, sticky='ew', pady=3)
-        self.retry_button = ttk.Button(frame, text="Tentar novamente", command=self.retry)
+        self.download_counts = tk.StringVar()
+        ttk.Label(frame, textvariable=self.download_counts,
+                  font=("Segoe UI", 14, "bold")).grid(row=6, column=0, sticky='w', pady=3)
+        self.retry_button = ttk.Button(frame, text="Tentar novamente", command=self.retry,
+                                       style="Primary.TButton")
         self.retry_button.grid(row=4, column=0, sticky='w', pady=3)
-        self.app_options = ttk.Frame(frame)
-        self.app_options.grid(row=5, column=0, sticky='ew', pady=3)
-        self.log = ScrolledText(self.app_options, state="disabled", height=5, font=("Consolas", 9))
-        self.log.configure(bg=COLORS['surface'], fg=COLORS['text'])
-        self.details_button = ttk.Button(self.app_options, text="Mostrar detalhes técnicos", command=self.toggle_details)
-        self.details_button.grid(row=0, column=0, sticky='w', pady=4)
-        self.log.grid(row=1, column=0, sticky='ew')
-        self.app_options.columnconfigure(0, weight=1)
-        updates = ttk.Frame(self.app_options)
-        updates.grid(row=2, column=0, sticky='ew', pady=4)
-        self.check_button = ttk.Button(updates, text="Verificar atualização", command=self.check)
-        self.check_button.pack(side="left")
-        self.install_button = ttk.Button(updates, text="Baixar e instalar", command=self.install, state="disabled")
-        self.install_button.pack(side="left", padx=8)
         self.update_status = tk.StringVar()
-        ttk.Label(self.app_options, textvariable=self.update_status, wraplength=360).grid(row=3, column=0, sticky='ew')
-        self.app_toggle = ttk.Button(frame, text="Opções do aplicativo", command=self.toggle_app_options)
-        self.app_toggle.grid(row=6, column=0, sticky='w', pady=3)
+        ttk.Label(frame, textvariable=self.update_status, wraplength=780).grid(row=5, column=0, sticky='ew')
         root.protocol("WM_DELETE_WINDOW", self.close)
         # Fixed actions remain reachable while the explorer uses remaining space.
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(1, weight=1)
         self.progress.grid_remove()
         self.retry_button.grid_remove()
-        self.log.grid_remove()
-        self.app_options.grid_remove()
         self.selection_frame.columnconfigure(0, weight=1)
         self.selection_frame.rowconfigure(1, weight=1)
         self.selection_bar.grid_remove()
-        self.destination_options.grid_remove()
         self.cancel_button.pack_forget()
         root.after(100, self.poll)
         root.after(500, self.check)
@@ -175,14 +151,11 @@ class Desktop:
         if hasattr(self, 'cancel_button'):
             self.cancel_button.configure(state="normal" if value and self.operation == "download" else "disabled")
             if value and self.operation == 'download':
-                self.destination_toggle.pack_forget()
                 self.logout_button.pack_forget()
                 self.cancel_button.pack(side='right', padx=4)
             else:
                 self.cancel_button.pack_forget()
-                self.destination_toggle.pack(side='left')
                 self.logout_button.pack(side='right')
-        self.install_button.configure(state="normal" if self.update and not value and sys.platform == "win32" else "disabled")
 
     def login(self):
         if self.checking:
@@ -254,12 +227,6 @@ class Desktop:
         else:
             self.selection_bar.grid_remove()
 
-    def recursion_changed(self):
-        self.explorer_state.recursive = self.recursive.get()
-        self.explorer_state.normalize()
-        self.explorer.render_rows()
-        self.selection_changed()
-
     def clear_selection(self):
         if not self.busy:
             self.explorer_state.selected.clear()
@@ -277,34 +244,13 @@ class Desktop:
         if not self.busy and self.retry_action:
             self.retry_action()
 
-    def toggle_details(self):
-        if self.log.winfo_manager():
-            self.log.grid_remove()
-            self.details_button.configure(text="Mostrar detalhes técnicos")
-        else:
-            self.log.grid()
-            self.details_button.configure(text="Ocultar detalhes técnicos")
-
-    def toggle_destination(self):
-        if self.destination_options.winfo_manager():
-            self.destination_options.grid_remove()
-        else:
-            self.destination_options.grid()
-            self.destination.focus_set()
-
-    def toggle_app_options(self):
-        if self.app_options.winfo_manager():
-            self.app_options.grid_remove()
-            self.app_toggle.configure(text="Opções do aplicativo")
-        else:
-            self.app_options.grid()
-            self.app_toggle.configure(text="Fechar opções do aplicativo")
-
-    def browse(self):
-        path = filedialog.askdirectory(parent=self.root)
-        if path:
-            self.destination.delete(0, "end")
-            self.destination.insert(0, path)
+    def choose_destination(self):
+        if self.busy:
+            return
+        directory = filedialog.askdirectory(parent=self.root, title="Escolher pasta para os downloads",
+                                            initialdir=self.destination.get() or str(Path.home()))
+        if directory:
+            self.destination.set(directory)
 
     def start(self, everything=False):
         if self.busy or not self.session:
@@ -319,7 +265,8 @@ class Desktop:
         self.status_label.configure(style="TLabel")
         self.set_busy(True)
         self.status.set("Preparando download… Lendo documentos e subpastas.")
-        self.session.commands.put(("download", (selected, everything or self.recursive.get(), self.destination.get())))
+        self.download_counts.set("Total/baixados: calculando…/0")
+        self.session.commands.put(("download", (selected, True, self.destination.get())))
 
     def download_summary(self, selected, recursive, destination):
         paths = location_paths(self.roots)
@@ -376,7 +323,6 @@ class Desktop:
         if self.checking:
             return
         self.checking = True
-        self.check_button.configure(state="disabled")
         self.update_status.set("Consultando atualizações…")
         def worker():
             try:
@@ -384,13 +330,6 @@ class Desktop:
             except Exception as exc:
                 self.events.put(("update_error", f"Não foi possível consultar atualizações: {exc}"))
         Thread(target=worker, daemon=True).start()
-
-    def install(self):
-        if self.busy or not self.update:
-            return
-        if not messagebox.askyesno("Atualização", f"Baixar a versão {self.update.version} e abrir o instalador? O aplicativo será fechado.", parent=self.root):
-            return
-        self.begin_update(self.update)
 
     def begin_update(self, update, automatic=False):
         if self.auto_updating:
@@ -413,14 +352,16 @@ class Desktop:
             except Empty:
                 break
             if kind == "log":
-                self.log.configure(state="normal")
-                self.log.insert("end", value)
-                if int(self.log.index("end-1c").split(".")[0]) > 2500:
-                    self.log.delete("1.0", "501.0")
-                self.log.see("end")
-                self.log.configure(state="disabled")
+                logging.info("%s", value.rstrip())
             elif kind == "status":
                 self.status.set(value)
+            elif kind == "download_progress":
+                total, downloaded, cached, errors = value
+                total_text = total if total is not None else "indisponível"
+                self.download_counts.set(
+                    f"Total/baixados: {total_text}/{downloaded}"
+                    f"   • Já disponíveis: {cached}   • Falhas: {errors}"
+                )
             elif kind == "catalog":
                 self.show_catalog(value)
             elif kind == 'branch':
@@ -463,7 +404,6 @@ class Desktop:
                     self.status.set(value)
             elif kind in ("update", "update_error"):
                 self.checking = False
-                self.check_button.configure(state="normal")
                 if kind == "update":
                     self.update = value
                     if value and sys.platform == "win32" and not self.session and not self.busy:

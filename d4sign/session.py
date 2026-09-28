@@ -160,6 +160,24 @@ class Session:
         cache = Cache(destination / '.d4sign-cache.json')
         cache.load()
         total = Statistics()
+        expected = 0
+        for index, node in enumerate(nodes, 1):
+            self.events.put(('status', f'Contando documentos {index}/{len(nodes)}: {paths[node.key]}'))
+            browser.config = replace(self.config, vault_id=node.vault_id, vault_uuid=node.uuid,
+                                     location_url=node.url)
+            count = browser.document_total(node.uuid)
+            if not isinstance(count, int):
+                expected = None
+            elif expected is not None:
+                expected += count
+
+        def report_progress(stats):
+            self.events.put(('download_progress', (
+                expected, total.downloaded + stats.downloaded,
+                total.cached + stats.cached, total.errors + stats.errors,
+            )))
+
+        report_progress(Statistics())
         for index, node in enumerate(nodes, 1):
             self.events.put(('status', f'Baixando {index}/{len(nodes)}: {paths[node.key]}'))
             config = replace(self.config, vault_id=node.vault_id, vault_uuid=node.uuid,
@@ -168,8 +186,10 @@ class Session:
             browser.config = config
             browser.current_driver.execute_cdp_cmd('Page.setDownloadBehavior', {'behavior': 'allow', 'downloadPath': str(destination)})
             processor = Processor(config, browser, Downloader(config, browser), cache)
+            processor.progress = report_progress
             stats = processor.process_location(node.uuid, node.name, destination / paths[node.key])
             total.add(stats)
             if processor.last_audit and not processor.last_audit['complete']:
                 total.errors += len(processor.last_audit['missing']) + len(processor.last_audit['duplicate_uuids'])
+        report_progress(Statistics())
         return total

@@ -1,6 +1,14 @@
 # Análise do explorador D4Sign
 
-## Arquitetura encontrada
+## Estado atual
+
+A tela atual usa checkboxes independentes da navegação, paginação de 40 pastas e destino visível. O download sempre inclui subpastas. Busca, revisão, opções recolhidas e atualização manual não são expostas. Os botões têm contornos suaves de 1 pixel e foco de teclado contrastante, sem borda dupla nos nomes de pasta.
+
+Validação desta alteração: `python -m pytest test -q --tb=short` — 246 testes passaram, sem testes ignorados. Login e download em conta real não foram executados.
+
+As seções seguintes registram a análise e as validações históricas da implementação anterior; não substituem o [README atual](README.md) nem a execução dos testes da versão em revisão.
+
+## Arquitetura encontrada (histórico)
 
 A aplicação atual é desktop: `desktop.py` e `main.py` iniciam
 `d4sign/desktop.py`, implementado com Tkinter/ttk. Não há servidor Flask,

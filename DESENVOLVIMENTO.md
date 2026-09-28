@@ -17,7 +17,7 @@ No desktop, a interface envia comandos para `Session` por uma fila. Uma thread e
 
 O login carrega o catálogo pelo menu lateral. As subpastas são descobertas conforme o usuário abre os itens; ao baixar recursivamente, a sessão expande os ramos selecionados. Para cada localização, o processador percorre os documentos, verifica arquivos existentes, baixa os pendentes e realiza uma auditoria.
 
-O estado do explorador fica em `ExplorerState`, separado dos widgets. A navegação não altera a seleção; os checkboxes não iniciam downloads. A busca é local ao nível aberto, e a renderização limita cada página a 40 pastas. Destino e opções técnicas ficam recolhidos para simplificar a tela.
+O estado do explorador fica em `ExplorerState`, separado dos widgets. A navegação não altera a seleção; os checkboxes não iniciam downloads. A renderização limita cada página a 40 pastas. O destino fica visível e o download inclui subpastas. A tela não expõe busca, revisão da seleção ou opções técnicas.
 
 ```mermaid
 flowchart TD
@@ -62,6 +62,12 @@ No terminal, `main.py` carrega `Config`, inicia o navegador, entra no cofre conf
 | [d4sign/version.py](d4sign/version.py) | Versão e repositório de atualização |
 
 O fluxo principal de documentos usa `Processor.download_selenium()`. Não presuma que mudar apenas `Downloader.download_document()` alterará os downloads do desktop.
+
+## Estilo dos botões
+
+O tema é centralizado em `configure_theme()` de `d4sign/explorer_view.py`. Os botões ttk usam relevo plano e contorno de 1 pixel: `primary_border` para ações laranja e `border` para pastas brancas. Os botões nativos de nomes de pasta usam somente `highlightthickness=1`, evitando uma segunda borda escura. O foco de teclado mantém contorno contrastante. São contornos suaves, sem cantos arredondados personalizados ou novas dependências.
+
+Ao validar o visual, confira foco por Tab, ativação por teclado, hover, controles desabilitados e nomes longos nas janelas de 960 × 850 e 440 × 640.
 
 ## Configuração do terminal
 
@@ -117,7 +123,7 @@ O desktop consulta todas as situações de documentos; o terminal mantém o filt
 
 O desktop muda o diretório de trabalho para `%LOCALAPPDATA%\D4SignDesktop`. No terminal, caminhos relativos partem do diretório de onde o comando foi executado. Diagnósticos podem conter conteúdo da conta; revise-os antes de compartilhar.
 
-O desktop grava exceções da sessão em `d4sign.log` nesse diretório. A tela mostra mensagens simples, com tentativa novamente; detalhes também aparecem no painel técnico recolhido. Resultados com falhas são tratados como download com pendências, sem indicar sucesso completo. Não há percentual global de documentos: a barra de atividade é indeterminada.
+O desktop grava exceções da sessão em `d4sign.log` nesse diretório. A tela mostra mensagens simples, com tentativa novamente; os detalhes técnicos ficam no log. Resultados com falhas são tratados como download com pendências, sem indicar sucesso completo. Não há percentual global de documentos: a barra de atividade é indeterminada.
 
 `refresh_level` refaz a leitura do menu e materializa somente os caminhos do nível atual e das seleções. Uma falha preserva o catálogo anterior. IDs enviados para download são conferidos novamente na sessão antes de acessar destinos ou processar arquivos.
 

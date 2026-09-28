@@ -151,12 +151,7 @@ def test_lazy_loading_error_retry_and_done_feedback(app):
     assert app.status_label.cget('style') == 'Success.TLabel'
 
 
-def test_search_pagination_and_empty_directory(app):
-    app.navigate('1:a')
-    app.explorer.search.set('CONTRAT')
-    assert list(app.explorer.row_checks) == ['1:b']
-    app.explorer.search.set('não existe')
-    assert not app.explorer.row_checks
+def test_pagination_and_empty_directory(app):
     app.navigate('2:e')
     assert not app.explorer.row_checks
     app.show_catalog([Location('1', str(i), f'Pasta {i:04}') for i in range(1000)])

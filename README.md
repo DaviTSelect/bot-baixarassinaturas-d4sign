@@ -28,15 +28,17 @@ O ChromeDriver deve ser compatível com esse Chrome. Apenas instalar o Chrome no
 1. Informe e-mail e senha e clique em **Entrar**.
 2. Clique no nome de um cofre ou pasta para abrir. Use **Início** ou os níveis do caminho para voltar.
 3. Marque as caixas das pastas que deseja baixar. A seleção permanece ao navegar.
-4. Se precisar, use **Revisar** para consultar a seleção e **Destino e subpastas** para alterar onde salvar.
+4. Confira a quantidade selecionada e use **Escolher pasta** para alterar o destino em **Salvar em (subpastas incluídas)**.
 5. Clique em **Baixar pasta** ou **Baixar N pastas**. Não há confirmação adicional.
 6. Acompanhe o resultado na própria tela. Em caso de falha, use **Tentar novamente**.
 
-As subpastas são carregadas sob demanda. A busca ignora maiúsculas e minúsculas e pesquisa apenas no nível aberto. Listas grandes mostram 40 pastas por página; a caixa de seleção geral afeta somente essa página, respeitando a busca. **Atualizar** recarrega o nível atual e preserva as seleções ainda disponíveis.
+As subpastas são carregadas sob demanda. Listas grandes mostram 40 pastas por página; a caixa de seleção geral afeta somente essa página. **Atualizar** recarrega o nível atual e preserva as seleções ainda disponíveis.
 
 Por padrão, o download inclui subpastas. Quando um pai está selecionado, seus descendentes aparecem incluídos e não precisam ser marcados novamente. **Cancelar download** encerra a sessão; entre novamente para outra operação.
 
-A tela principal mostra apenas as ações de navegação e download. Configurações de destino e opções do aplicativo ficam recolhidas. Detalhes técnicos e atualização manual estão em **Opções do aplicativo**. O indicador de atividade é indeterminado: não representa uma porcentagem de documentos.
+A tela principal mostra as ações de navegação e download e o destino dos arquivos. As subpastas são sempre incluídas. A consulta de atualização é automática; os detalhes técnicos ficam no log. O indicador de atividade é indeterminado: não representa uma porcentagem de documentos.
+
+Os botões têm contornos finos e suaves, com destaque de foco ao navegar pelo teclado. As ações usam laranja e os botões de pasta usam fundo branco.
 
 O explorador mostra pastas, não a lista de documentos. Uma pasta sem subpastas ainda pode conter PDFs.
 

@@ -4,10 +4,13 @@ from tkinter import ttk
 
 
 COLORS = {
-    'background': '#f3f5f7', 'surface': '#ffffff', 'text': '#203447',
-    'muted': '#526578', 'border': '#ced6df', 'primary': '#b93812',
-    'hover': '#e9eef3', 'selected': '#fff0e9', 'success': '#21633b',
-    'error': '#a32424',
+    'background': '#203447', 'surface': '#EFEDE5', 'text': '#203447',
+    'on_background': '#EFEDE5', 'muted_on_background': '#EFEDE5',
+    'muted': '#526578', 'border': '#D5DDE4', 'primary': '#E94C1F',
+    'primary_border': '#ED7958',
+    'on_primary': '#FFFFFF', 'primary_hover': '#F3653B',
+    'hover': '#e9eef3', 'selected': '#fff0e9', 'success': '#EFEDE5',
+    'error': '#EFEDE5',
 }
 
 
@@ -19,22 +22,36 @@ def configure_theme(root):
         pass
     root.configure(background=COLORS['background'])
     style.configure('.', font=('Segoe UI', 10), background=COLORS['background'],
-                    foreground=COLORS['text'])
-    style.configure('TButton', padding=(8, 5), width=0, background=COLORS['surface'])
-    style.map('TButton', background=[('active', COLORS['hover'])],
-              bordercolor=[('focus', COLORS['primary'])])
-    style.configure('Primary.TButton', background=COLORS['primary'], foreground='white')
-    style.map('Primary.TButton', background=[('disabled', COLORS['muted']),
-                                            ('active', '#962d0e')])
-    style.configure('Muted.TLabel', foreground=COLORS['muted'])
+                    foreground=COLORS['on_background'])
+    style.configure('TEntry', fieldbackground=COLORS['surface'], foreground=COLORS['text'],
+                    insertcolor=COLORS['text'])
+    style.configure('TCheckbutton', foreground=COLORS['on_background'])
+    style.map('TCheckbutton', background=[('active', COLORS['background'])],
+              foreground=[('disabled', COLORS['muted_on_background']),
+                          ('!disabled', COLORS['on_background'])])
+    style.configure('TButton', padding=(8, 5), width=20, anchor='center', background=COLORS['primary'],
+                    foreground=COLORS['on_primary'], borderwidth=1, relief='flat',
+                    bordercolor=COLORS['primary_border'], lightcolor=COLORS['primary'],
+                    darkcolor=COLORS['primary'])
+    style.map('TButton', background=[('active', COLORS['primary_hover'])],
+              foreground=[('disabled', COLORS['on_primary']), ('!disabled', COLORS['on_primary'])],
+              bordercolor=[('focus', COLORS['on_primary'])])
+    style.configure('Folder.TButton', background='#FFFFFF', foreground=COLORS['text'],
+                    bordercolor=COLORS['border'], lightcolor='#FFFFFF', darkcolor='#FFFFFF')
+    style.map('Folder.TButton', background=[('active', COLORS['hover']), ('!active', '#FFFFFF')],
+              foreground=[('disabled', COLORS['muted']), ('!disabled', COLORS['text'])],
+              bordercolor=[('focus', COLORS['text'])])
+    style.configure('Muted.TLabel', foreground=COLORS['muted_on_background'])
     style.configure('Error.TLabel', foreground=COLORS['error'])
     style.configure('Success.TLabel', foreground=COLORS['success'])
     for prefix, color in [('Row', COLORS['surface']), ('Selected', COLORS['selected'])]:
         style.configure(prefix + '.TFrame', background=color)
         style.configure(prefix + '.TLabel', background=color, foreground=COLORS['muted'])
-        style.configure(prefix + '.TCheckbutton', background=color, padding=8)
-        style.map(prefix + '.TCheckbutton', background=[('active', COLORS['hover'])])
-        style.configure(prefix + '.TButton', background=color, anchor='w', relief='flat')
+        style.configure(prefix + '.TCheckbutton', background=color,
+                        foreground=COLORS['text'], padding=8)
+        style.map(prefix + '.TCheckbutton', background=[('active', COLORS['hover'])],
+                  foreground=[('disabled', COLORS['muted']), ('!disabled', COLORS['text'])])
+        style.configure(prefix + '.TButton', anchor='w')
 
 
 class FolderExplorer(ttk.Frame):
@@ -49,17 +66,8 @@ class FolderExplorer(ttk.Frame):
             self.folder_icon.put(COLORS['muted'], to=rectangle)
         self.crumbs = ttk.Frame(self)
         tools = ttk.Frame(self)
-        ttk.Label(tools, text='Buscar pasta neste nível', style='Muted.TLabel').pack(anchor='w')
-        search_row = ttk.Frame(tools)
-        search_row.pack(fill='x', pady=4)
-        self.search = tk.StringVar()
-        self.entry = ttk.Entry(search_row, textvariable=self.search)
-        self.entry.pack(side='left', fill='x', expand=True)
-        self.clear_search = ttk.Button(search_row, text='Limpar busca', command=lambda: self.search.set(''))
-        self.clear_search.pack(side='left', padx=4)
-        self.refresh_button = ttk.Button(search_row, text='Atualizar', command=on_refresh)
-        self.refresh_button.pack(side='left')
-        self.search.trace_add('write', self.filter)
+        self.refresh_button = ttk.Button(tools, text='Atualizar', command=on_refresh)
+        self.refresh_button.pack(side='right', pady=4)
         self.all_var = tk.BooleanVar()
         self.all_check = ttk.Checkbutton(self, text='Selecionar pastas desta página',
                                          variable=self.all_var, command=self.select_visible)
@@ -78,11 +86,12 @@ class FolderExplorer(ttk.Frame):
         self.rows.bind('<MouseWheel>', self.wheel)
         self.pagination = ttk.Frame(self)
         self.previous = ttk.Button(self.pagination, text='Anterior', command=lambda: self.turn_page(-1))
-        self.previous.pack(side='left')
+        self.previous.grid(row=1, column=0, sticky='w')
         self.count = ttk.Label(self.pagination, style='Muted.TLabel')
-        self.count.pack(side='left', padx=8)
+        self.count.grid(row=0, column=0, columnspan=2, pady=(0, 4))
         self.next = ttk.Button(self.pagination, text='Próxima', command=lambda: self.turn_page(1))
-        self.next.pack(side='right')
+        self.next.grid(row=1, column=1, sticky='e')
+        self.pagination.columnconfigure((0, 1), weight=1)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(3, weight=1)
         for row, child in enumerate([self.crumbs, tools, self.all_check, container, self.pagination]):
@@ -110,10 +119,6 @@ class FolderExplorer(ttk.Frame):
             widget.grid(row=row, column=column, sticky='w', padx=(0, 4), pady=2)
             x, column = x + needed, column + 1
 
-    def filter(self, *args):
-        self.state.search, self.state.page = self.search.get(), 0
-        self.render_rows()
-
     def navigate(self, key):
         if not self.busy:
             self.on_open(key)
@@ -129,13 +134,11 @@ class FolderExplorer(ttk.Frame):
             if key is not None:
                 name = '› ' + name
             button = ttk.Button(self.crumbs, text=name if len(name) <= 34 else name[:31] + '…',
-                                command=lambda k=key: self.navigate(k))
+                                width=0, command=lambda k=key: self.navigate(k))
             button.configure(state='disabled' if self.busy else 'normal')
         if self.state.reviewing:
             ttk.Label(self.crumbs, text='› Seleção para download').grid()
         self.layout_crumbs()
-        if self.search.get() != self.state.search:
-            self.search.set(self.state.search)
         self.render_rows()
 
     def render_rows(self, focus_key=None):
@@ -159,12 +162,13 @@ class FolderExplorer(ttk.Frame):
             check.configure(state='disabled' if self.busy or inherited else 'normal')
             self.row_checks[node.key] = check
             # A wrapping native button keeps long folder names readable on narrow windows.
-            button = tk.Button(row, text='  ' + node.name, image=self.folder_icon, compound='left', anchor='w', relief='flat',
-                               background=COLORS['selected'] if selected else COLORS['surface'],
+            button = tk.Button(row, text='  ' + node.name, image=self.folder_icon, compound='left', anchor='w', relief='flat', borderwidth=0,
+                               background='#FFFFFF',
                                foreground=COLORS['text'], activebackground=COLORS['hover'],
+                               activeforeground=COLORS['text'], disabledforeground=COLORS['muted'],
                                font=('Segoe UI', 11), cursor='hand2', padx=8, pady=6,
-                               highlightthickness=1, highlightcolor=COLORS['primary'],
-                               highlightbackground=COLORS['selected'] if selected else COLORS['surface'],
+                               highlightthickness=1, highlightcolor=COLORS['text'],
+                               highlightbackground=COLORS['border'],
                                command=lambda k=node.key: self.navigate(k))
             button.grid(row=0, column=1, sticky='ew')
             button.bind('<Configure>', lambda event: event.widget.configure(wraplength=max(120, event.width - 24)))
@@ -182,8 +186,9 @@ class FolderExplorer(ttk.Frame):
                 detail = self.state.path(node.key)
             ttk.Label(row, text=detail, style=prefix + '.TLabel',
                       wraplength=max(160, self.canvas.winfo_width() - 100)).grid(row=1, column=1, sticky='w', padx=8)
-            open_button = ttk.Button(row, text='›', width=3, command=lambda k=node.key: self.navigate(k))
-            open_button.grid(row=0, column=2, rowspan=2, padx=4)
+            open_button = ttk.Button(row, text='›', width=3, style='Folder.TButton',
+                                     command=lambda k=node.key: self.navigate(k))
+            open_button.grid(row=0, column=2, sticky='ns', padx=4)
             open_button.configure(state='disabled' if self.busy else 'normal')
             for widget in [row, *row.winfo_children()]:
                 widget.bind('<MouseWheel>', self.wheel)
@@ -192,8 +197,6 @@ class FolderExplorer(ttk.Frame):
         if not items:
             if self.busy:
                 message = 'Carregando conteúdo…'
-            elif self.state.search.strip():
-                message = f'Nenhuma pasta encontrada para “{self.state.search.strip()}”.'
             elif self.state.reviewing:
                 message = 'Nenhuma pasta selecionada.'
             elif self.state.current and not self.state.nodes[self.state.current].loaded:
@@ -216,15 +219,10 @@ class FolderExplorer(ttk.Frame):
             self.pagination.grid()
         else:
             self.pagination.grid_remove()
-        if self.state.search:
-            self.clear_search.pack(side='left', padx=4, before=self.refresh_button)
-        else:
-            self.clear_search.pack_forget()
         self.count.configure(text=f'{total} locais • Página {self.state.page + 1} de {pages}')
         self.previous.configure(state='normal' if self.state.page and not self.busy else 'disabled')
         self.next.configure(state='normal' if self.state.page + 1 < pages and not self.busy else 'disabled')
-        for control in (self.entry, self.clear_search, self.refresh_button):
-            control.configure(state='disabled' if self.busy else 'normal')
+        self.refresh_button.configure(state='disabled' if self.busy else 'normal')
         self.rows.update_idletasks()
         self.canvas.yview_moveto(y)
         if focus_key in self.row_checks:

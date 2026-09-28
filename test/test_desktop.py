@@ -159,7 +159,6 @@ def test_desktop_login_and_selection_widgets(monkeypatch):
         assert kind == 'download'
         assert data[0] == ['42:' + CHILD] and data[1] is True
         app.set_busy(False)
-        app.recursive.set(False)
         app.start(True)
         assert worker.commands.get_nowait()[1][:2] == (['42:' + ROOT], True)
         app.set_busy(False)
