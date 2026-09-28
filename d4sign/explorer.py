@@ -16,6 +16,7 @@ class ExplorerState:
     parents: dict = field(default_factory=dict)
 
     def catalog(self, roots):
+        previous_path = self.ancestors(self.current)
         self.roots = roots
         self.nodes, self.parents = {}, {}
         pending = [(node, None) for node in roots]
@@ -26,7 +27,7 @@ class ExplorerState:
             pending.extend((child, node.key) for child in node.children)
         self.selected.intersection_update(self.nodes)
         if self.current not in self.nodes:
-            self.current = None
+            self.current = next((key for key in reversed(previous_path) if key in self.nodes), None)
         self.normalize()
 
     def ancestors(self, key):

@@ -1,4 +1,5 @@
 import os
+import logging
 from pathlib import Path
 from queue import Queue, Empty
 import subprocess
@@ -10,6 +11,8 @@ from tkinter.scrolledtext import ScrolledText
 
 from .config import Config
 from .cache import Cache
+from .explorer import ExplorerState
+from .explorer_view import FolderExplorer, configure_theme, COLORS
 from .catalog import location_paths, selected_locations
 from .session import Session
 from .updates import check_update, download_update
@@ -34,7 +37,7 @@ def resource_path(relative_path: str) -> Path:
 
     return Path(__file__).resolve().parent.parent / relative_path
 
-    # Removed redundant return statement
+
 class Desktop:
     def __init__(self, root):
         self.root, self.events = root, Queue()
@@ -42,32 +45,21 @@ class Desktop:
         self.auto_updating = False
         self.session = self.update = self.pending_installer = None
         self.roots = []
+        self.explorer_state = ExplorerState()
+        self.operation = None
+        self.retry_action = None
         
         root.title(f"D4Sign • Baixar Assinaturas • {VERSION}")
-        root.configure(bg="#203447")
-        style = ttk.Style(root)
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
-        style.configure("TFrame", background="#203447")
-        style.configure("TLabelframe", background="#203447", foreground="#efede5")
-        style.configure("TLabelframe.Label", background="#203447", foreground="#efede5")
-        style.configure("TLabel", background="#203447", foreground="#efede5")
-        style.configure("TButton", background="#e94c1f", foreground="#efede5", padding=(10, 6))
-        style.map("TButton", background=[("active", "#d8441b"), ("disabled", "#6c777c")])
-        style.configure("TCheckbutton", background="#203447", foreground="#efede5")
-        style.configure("Treeview", background="#172633", fieldbackground="#172633", foreground="#efede5")
-        style.map("Treeview", background=[("selected", "#e94c1f")], foreground=[("selected", "#efede5")])
-        root.geometry("850x780")
+        configure_theme(root)
+        root.geometry("960x850")
         icon_path = resource_path("icon/logo.ico")
 
         if icon_path.exists():
             self.root.iconbitmap(str(icon_path))
-        root.minsize(700, 650)
+        root.minsize(440, 640)
         frame = ttk.Frame(root, padding=20)
         frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text="Download de documentos D4Sign", font=("Segoe UI", 18, "bold")).pack(anchor="w", pady=(0, 15))
+        ttk.Label(frame, text="Arquivos D4Sign", font=("Segoe UI", 18, "bold")).pack(anchor="w", pady=(0, 15))
         self.pages = ttk.Frame(frame)
         self.pages.pack(fill="both", expand=True)
         self.login_frame = ttk.LabelFrame(self.pages, text="1. Entre na sua conta", padding=12)
@@ -81,44 +73,55 @@ class Desktop:
         self.login_button = ttk.Button(self.login_frame, text="Entrar", command=self.login)
         self.login_button.grid(row=2, column=1, sticky="e")
         self.password.bind("<Return>", lambda event: self.login())
-        self.selection_frame = ttk.LabelFrame(self.pages, text="2. Escolha o que baixar", padding=12)
-        ttk.Label(self.selection_frame, text="Selecione cofres ou pastas. Use Ctrl para selecionar vários itens.").pack(anchor="w")
-        tree_frame = ttk.Frame(self.selection_frame)
-        tree_frame.pack(fill="both", expand=True, pady=8)
-        self.tree = ttk.Treeview(tree_frame, selectmode="extended", show="tree", height=10)
-        self.tree.bind('<<TreeviewOpen>>', self.expand)
-        scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scroll.set)
-        scroll.pack(side="right", fill="y")
-        self.tree.pack(side="left", fill="both", expand=True)
+        self.selection_frame = ttk.Frame(self.pages)
+        ttk.Label(self.selection_frame, text="Abra pelo nome. Marque a caixa para selecionar.",
+                  style="Muted.TLabel").pack(anchor="w", pady=(0, 8))
+        self.explorer = FolderExplorer(self.selection_frame, self.explorer_state,
+                                       self.navigate, self.selection_changed, self.refresh)
+        self.explorer.pack(fill="both", expand=True)
         self.recursive = tk.BooleanVar(value=True)
-        recursive = ttk.Checkbutton(self.selection_frame, text="Incluir todas as subpastas dos itens selecionados", variable=self.recursive)
-        recursive.pack(anchor="w")
-        ttk.Label(self.selection_frame, text="Os nomes e a estrutura das pastas serão mantidos no destino.").pack(anchor="w", pady=4)
+        recursive = ttk.Checkbutton(self.selection_frame, text="Incluir todas as subpastas",
+                                     variable=self.recursive, command=self.recursion_changed)
+        recursive.pack(anchor="w", pady=4)
+        ttk.Label(self.selection_frame, text="Salvar documentos em", style="Muted.TLabel").pack(anchor="w")
         destination = ttk.Frame(self.selection_frame)
-        destination.pack(fill="x", pady=8)
+        destination.pack(fill="x", pady=(4, 8))
         self.destination = ttk.Entry(destination)
         self.destination.insert(0, str(Path.home() / "Downloads" / "D4Sign"))
         Cache(Path(self.destination.get()) / ".d4sign-cache.json")
         self.destination.pack(side="left", fill="x", expand=True)
         browse = ttk.Button(destination, text="Escolher destino…", command=self.browse)
         browse.pack(side="right", padx=(8, 0))
-        actions = ttk.Frame(self.selection_frame)
+        self.selection_bar = ttk.Frame(self.selection_frame, padding=(0, 8))
+        self.selection_text = tk.StringVar()
+        ttk.Label(self.selection_bar, textvariable=self.selection_text,
+                  font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+        actions = ttk.Frame(self.selection_bar)
         actions.pack(fill="x")
-        self.controls = [self.destination, browse, recursive]
-        for label, command in [("Baixar selecionados", self.start), ("Baixar tudo da conta", lambda: self.start(True)),
-                               ("Atualizar lista", self.refresh), ("Sair da conta", self.logout)]:
-            button = ttk.Button(actions, text=label, command=command)
-            button.pack(side="left", padx=(0, 6))
-            self.controls.append(button)
-        self.cancel_button = ttk.Button(actions, text="Cancelar download", command=self.cancel_download, state="disabled")
-        self.cancel_button.pack(side="left", padx=(0, 6))
-        self.controls.append(self.cancel_button)
+        review = ttk.Button(actions, text="Revisar", command=self.review_selection)
+        review.pack(side="left")
+        clear = ttk.Button(actions, text="Limpar seleção", command=self.clear_selection)
+        clear.pack(side="left", padx=4)
+        self.download_button = ttk.Button(actions, text="Baixar pasta", command=self.start,
+                                          style="Primary.TButton")
+        self.download_button.pack(side="right")
+        footer = ttk.Frame(self.selection_frame)
+        footer.pack(side="bottom", fill="x", pady=(4, 0))
+        logout = ttk.Button(footer, text="Sair da conta", command=self.logout)
+        logout.pack(side="left")
+        self.cancel_button = ttk.Button(footer, text="Cancelar download", command=self.cancel_download, state="disabled")
+        self.cancel_button.pack(side="right")
+        self.controls = [self.destination, browse, recursive, review, clear, self.download_button, logout]
         self.status = tk.StringVar(value="Informe suas credenciais. O navegador ficará oculto e a senha não será salva.")
-        ttk.Label(frame, textvariable=self.status, wraplength=780).pack(fill="x", pady=10)
-        self.log = ScrolledText(frame, state="disabled", height=7, font=("Consolas", 9))
-        self.log.configure(bg="#172633", fg="#efede5", insertbackground="#efede5")
-        self.log.pack(fill="both", expand=True)
+        self.status_label = ttk.Label(frame, textvariable=self.status, wraplength=780)
+        self.status_label.pack(fill="x", pady=(8, 4))
+        frame.bind('<Configure>', lambda event: self.status_label.configure(wraplength=max(280, event.width - 40)))
+        self.progress = ttk.Progressbar(frame, mode="indeterminate")
+        self.retry_button = ttk.Button(frame, text="Tentar novamente", command=self.retry)
+        self.log = ScrolledText(frame, state="disabled", height=5, font=("Consolas", 9))
+        self.log.configure(bg=COLORS['surface'], fg=COLORS['text'])
+        self.details_button = ttk.Button(frame, text="Mostrar detalhes técnicos", command=self.toggle_details)
+        self.details_button.pack(anchor="w", pady=(6, 0))
         updates = ttk.Frame(frame)
         updates.pack(fill="x", pady=(10, 0))
         self.check_button = ttk.Button(updates, text="Verificar atualização", command=self.check)
@@ -128,15 +131,40 @@ class Desktop:
         self.update_status = tk.StringVar()
         ttk.Label(frame, textvariable=self.update_status, wraplength=780).pack(fill="x")
         root.protocol("WM_DELETE_WINDOW", self.close)
+        # Fixed actions remain reachable while the explorer uses remaining space.
+        for child in frame.winfo_children():
+            child.pack_forget()
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(1, weight=1)
+        for row, child in enumerate(frame.winfo_children()):
+            child.grid(row=row, column=0, sticky='nsew' if child is self.pages else 'ew', pady=3)
+        self.progress.grid_remove()
+        self.retry_button.grid_remove()
+        self.log.grid_remove()
+        for child in self.selection_frame.winfo_children():
+            child.pack_forget()
+        self.selection_frame.columnconfigure(0, weight=1)
+        self.selection_frame.rowconfigure(1, weight=1)
+        for row, child in enumerate(self.selection_frame.winfo_children()):
+            child.grid(row=row, column=0, sticky='nsew' if child is self.explorer else 'ew', pady=3)
+        self.selection_bar.grid_remove()
         root.after(100, self.poll)
         root.after(500, self.check)
 
     def set_busy(self, value):
         self.busy = value
+        self.explorer.set_busy(value)
+        if value:
+            self.progress.grid()
+            self.progress.start(12)
+        else:
+            self.progress.stop()
+            self.progress.grid_remove()
+        self.selection_changed()
         for control in self.controls + [self.email, self.password, self.login_button]:
             control.configure(state="disabled" if value else "normal")
         if hasattr(self, 'cancel_button'):
-            self.cancel_button.configure(state="normal" if value and self.session else "disabled")
+            self.cancel_button.configure(state="normal" if value and self.operation == "download" else "disabled")
         self.install_button.configure(state="normal" if self.update and not value and sys.platform == "win32" else "disabled")
 
     def login(self):
@@ -148,7 +176,7 @@ class Desktop:
         try:
             config = desktop_config(self.email.get(), self.password.get(), str(Path.cwd() / "temporary-downloads"))
         except ValueError as exc:
-            messagebox.showerror("Login", str(exc), parent=self.root)
+            self.status.set(str(exc))
             return
         self.password.delete(0, "end")
         self.set_busy(True)
@@ -157,45 +185,88 @@ class Desktop:
         self.session.start()
 
     def show_catalog(self, roots):
-        opened = {key for key in getattr(self, 'nodes', {}) if self.tree.exists(key) and self.tree.item(key, 'open')}
-        selected = self.tree.selection()
+        previous_selection = set(self.explorer_state.selected)
         self.roots = roots
-        self.nodes = {}
-        self.tree.delete(*self.tree.get_children())
-        self.insert_nodes(roots)
-        for key in opened:
-            if self.tree.exists(key):
-                self.tree.item(key, open=True)
-        self.tree.selection_set([key for key in selected if self.tree.exists(key)])
+        self.explorer_state.catalog(roots)
         self.login_frame.pack_forget()
         self.selection_frame.pack(fill="both", expand=True)
         self.set_busy(False)
-        self.status.set("Escolha um cofre ou uma pasta, ou baixe tudo da conta.")
+        self.explorer.render()
+        self.selection_changed()
+        self.status.set("Abra uma pasta pelo nome ou marque as caixas para baixar.")
+        if previous_selection - self.explorer_state.selected:
+            self.status.set("A lista mudou. Pastas indisponíveis foram removidas da seleção; revise antes de baixar.")
+        self.status_label.configure(style="TLabel")
 
-    def insert_nodes(self, nodes, parent=''):
-        for node in sorted(nodes, key=lambda item: item.name.casefold()):
-            self.nodes[node.key] = node
-            self.tree.insert(parent, 'end', iid=node.key, text=node.name, open=False)
-            self.insert_nodes(node.children, node.key)
-            if not node.loaded:
-                self.tree.insert(node.key, 'end', iid=node.key + ':pending', text='Expandir para carregar…')
-
-    def expand(self, event=None):
-        key = self.tree.focus()
-        node = getattr(self, 'nodes', {}).get(key)
-        if not self.busy and self.session and node and not node.loaded:
+    def navigate(self, key):
+        if self.busy:
+            return
+        self.retry_button.grid_remove()
+        self.retry_action = None
+        self.operation = None
+        self.explorer_state.navigate(key)
+        self.explorer.canvas.yview_moveto(0)
+        self.explorer.render()
+        node = self.explorer_state.nodes.get(key)
+        if node and not node.loaded and self.session:
+            self.operation = "expand"
+            self.retry_action = lambda: self.navigate(key)
+            self.retry_button.grid_remove()
             self.set_busy(True)
-            self.status.set(f'Carregando subpastas de {node.name}…')
-            self.session.commands.put(('expand', key))
+            self.status.set(f"Carregando subpastas de {node.name}…")
+            self.session.commands.put(("expand", key))
+        else:
+            self.status.set("Marque a caixa para selecionar; clique no nome para abrir.")
+        self.status_label.configure(style="TLabel")
 
     def show_branch(self, node):
-        current = self.nodes[node.key]
+        current = self.explorer_state.nodes[node.key]
         current.children, current.loaded = node.children, node.loaded
-        self.tree.delete(*self.tree.get_children(node.key))
-        self.insert_nodes(node.children, node.key)
-        self.tree.item(node.key, open=True)
+        self.explorer_state.catalog(self.roots)
         self.set_busy(False)
-        self.status.set('Pastas carregadas. Selecione o que deseja baixar.')
+        self.explorer.render()
+        self.status.set("Conteúdo carregado.")
+        self.operation = None
+
+    def selection_changed(self):
+        count = len(self.explorer_state.selected)
+        self.selection_text.set("1 pasta selecionada" if count == 1 else f"{count} pastas selecionadas")
+        self.download_button.configure(text="Baixar pasta" if count == 1 else f"Baixar {count} pastas")
+        if count:
+            self.selection_bar.grid()
+        else:
+            self.selection_bar.grid_remove()
+
+    def recursion_changed(self):
+        self.explorer_state.recursive = self.recursive.get()
+        self.explorer_state.normalize()
+        self.explorer.render_rows()
+        self.selection_changed()
+
+    def clear_selection(self):
+        if not self.busy:
+            self.explorer_state.selected.clear()
+            self.explorer.render_rows()
+            self.selection_changed()
+
+    def review_selection(self):
+        if not self.busy:
+            self.explorer_state.reviewing = True
+            self.explorer_state.search, self.explorer_state.page = '', 0
+            self.explorer.render()
+            self.status.set("Revise as pastas selecionadas. Use Início para continuar navegando.")
+
+    def retry(self):
+        if not self.busy and self.retry_action:
+            self.retry_action()
+
+    def toggle_details(self):
+        if self.log.winfo_manager():
+            self.log.grid_remove()
+            self.details_button.configure(text="Mostrar detalhes técnicos")
+        else:
+            self.log.grid()
+            self.details_button.configure(text="Ocultar detalhes técnicos")
 
     def browse(self):
         path = filedialog.askdirectory(parent=self.root)
@@ -206,15 +277,16 @@ class Desktop:
     def start(self, everything=False):
         if self.busy or not self.session:
             return
-        selected = [root.key for root in self.roots] if everything else list(self.tree.selection())
+        selected = [root.key for root in self.roots] if everything else sorted(self.explorer_state.selected)
         if not selected or not self.destination.get().strip():
-            messagebox.showinfo("Downloads", "Selecione um cofre ou pasta e escolha o destino.", parent=self.root)
+            self.status.set("Selecione um cofre ou pasta e escolha o destino.")
             return
-        summary = self.download_summary(selected, everything or self.recursive.get(), self.destination.get())
-        if not messagebox.askyesno("Confirmar download", summary, parent=self.root):
-            return
+        self.operation = "download"
+        self.retry_action = self.start
+        self.retry_button.grid_remove()
+        self.status_label.configure(style="TLabel")
         self.set_busy(True)
-        self.status.set("Preparando downloads…")
+        self.status.set("Preparando download… Lendo documentos e subpastas.")
         self.session.commands.put(("download", (selected, everything or self.recursive.get(), self.destination.get())))
 
     def download_summary(self, selected, recursive, destination):
@@ -244,8 +316,13 @@ class Desktop:
 
     def refresh(self):
         if not self.busy and self.session:
+            self.operation = "refresh"
+            self.retry_action = self.refresh
+            self.retry_button.grid_remove()
             self.set_busy(True)
-            self.session.commands.put(("refresh", None))
+            self.status.set("Atualizando este nível…")
+            self.session.commands.put(("refresh_level", (self.explorer_state.current,
+                                                         sorted(self.explorer_state.selected))))
 
     def cancel_download(self):
         if not self.session or not self.busy:
@@ -258,6 +335,7 @@ class Desktop:
 
     def logout(self):
         if not self.busy and self.session:
+            self.operation = 'logout'
             self.set_busy(True)
             self.status.set("Encerrando sessão…")
             self.session.close()
@@ -317,7 +395,11 @@ class Desktop:
                 self.show_branch(value)
             elif kind == "closed":
                 self.session = None
+                self.operation = self.retry_action = None
+                self.retry_button.grid_remove()
                 self.roots = []
+                self.explorer_state.catalog([])
+                self.explorer_state.navigate(None)
                 self.selection_frame.pack_forget()
                 self.login_frame.pack(fill="x")
                 if self.pending_installer:
@@ -330,12 +412,20 @@ class Desktop:
                 self.set_busy(False)
             elif kind == "session_error":
                 self.status.set(value)
-                messagebox.showerror("D4Sign", value, parent=self.root)
-            elif kind in ("done", "error", "cancelled"):
+                self.status_label.configure(style="Error.TLabel")
+            elif kind in ("done", "done_warning", "error", "cancelled"):
                 self.set_busy(kind == "cancelled")
                 self.status.set(value)
                 if kind == "error":
-                    messagebox.showerror("D4Sign", value, parent=self.root)
+                    self.status_label.configure(style="Error.TLabel")
+                    self.retry_button.grid()
+                elif kind == "done":
+                    self.status_label.configure(style="Success.TLabel")
+                    self.operation = None
+                elif kind == "done_warning":
+                    self.status_label.configure(style="Error.TLabel")
+                    self.retry_button.grid()
+                    self.operation = None
                 elif kind == "cancelled":
                     self.cancel_button.configure(state="disabled")
                     self.status.set(value)
@@ -381,6 +471,7 @@ class Desktop:
     def close(self):
         if self.session:
             self.closing = True
+            self.operation = 'close'
             self.set_busy(True)
             self.session.close()
         else:
@@ -392,6 +483,8 @@ def main():
     data_dir = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local" / "share"))) / "D4SignDesktop"
     data_dir.mkdir(parents=True, exist_ok=True)
     os.chdir(data_dir)
+    logging.basicConfig(filename=data_dir / 'd4sign.log', encoding='utf-8',
+                        level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     root = tk.Tk()
     Desktop(root)
     root.mainloop()
