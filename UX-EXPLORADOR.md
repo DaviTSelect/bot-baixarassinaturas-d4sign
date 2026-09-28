@@ -52,13 +52,51 @@ com recuperação, mantendo detalhes em logs.
 Preservar autenticação, fila da sessão, download recursivo, caminhos locais,
 cache e auditoria. Uma interface web exigiria uma camada nova de servidor e
 segurança de sessão; isso não constitui apenas uma refatoração da tela atual.
-A escolha entre desktop e web precisa ser definida antes da implementação.
+O usuário confirmou a manutenção da interface desktop, sem criar versão web.
 
-## Validação prevista
+## Implementação desktop
 
-Usar dados fictícios para verificar navegação e breadcrumb, seleção isolada,
-múltiplas origens, pai/filho sem duplicidade, busca sem resultados, falhas e
-repetição de operações, catálogo grande e preservação do download existente.
-Validar teclado e dimensões reduzidas na plataforma escolhida. Testes com
-conta real dependem de acesso autorizado e não devem gravar credenciais ou
-documentos no repositório.
+- `d4sign/explorer.py`: estado independente de widgets, navegação, busca local,
+  seleção persistente, inclusão de descendentes e paginação.
+- `d4sign/explorer_view.py`: checkboxes nativos separados dos botões de abrir,
+  breadcrumb, lista com rolagem, cores centralizadas e nomes com quebra de linha.
+- `d4sign/desktop.py`: integração com sessão, revisão, download, feedback e
+  configurações recolhidas para manter a tela principal simples.
+- `d4sign/session.py`: atualização preservando os caminhos necessários,
+  validação de IDs, erro amigável com diagnóstico em log e distinção entre
+  sucesso completo e download com pendências.
+
+A atualização refaz a leitura do menu raiz do site e carrega somente os
+caminhos necessários ao nível aberto e às seleções. Isso evita depender de
+uma API de atualização isolada de subpastas que a automação atual não possui.
+Se essa operação falhar, o catálogo anterior continua disponível para retry.
+
+O download preserva a configuração recursiva, cache e auditoria existentes.
+Não há novo servidor, dependência de frontend ou migração da automação.
+
+## Simplicidade da tela
+
+Conforme a orientação adicional do usuário, destino, opções de subpastas,
+diagnósticos e atualização manual ficam recolhidos. A paginação aparece apenas
+acima de 40 resultados, e limpar busca aparece somente quando há texto.
+O cancelamento aparece apenas durante download. As ações principais são
+abrir pelo nome, marcar a caixa e clicar em baixar.
+
+## Validação realizada
+
+Os testes usam dados fictícios para verificar navegação e breadcrumb, seleção
+isolada, múltiplas origens, pai/filho sem duplicidade, busca sem resultados,
+falhas e repetição de operações, catálogo com 5.000 pastas e preservação do
+download existente. Também verificam IDs inválidos, atualização sem encerrar
+a sessão após falha e resultados de download com pendências.
+
+- Suíte completa: `python -m pytest test -q --tb=short` — 245 testes passaram.
+- Verificação adicional após ampliar os testes de teclado e tamanho mínimo:
+  `python -m pytest test/test_explorer.py -q --tb=short` — 10 testes passaram.
+- Layout validado em 960 × 850 e 440 × 640; seleção com Espaço não navega
+  nem dispara download. Prévia visual revisada em 960 × 850 e 440 × 700.
+- `git diff --check` sem erros de whitespace.
+
+Não foi realizado login ou download numa conta real. A aplicação continua
+sendo desktop; a validação compacta não equivale a suporte em celular.
+O suporte a leitores de tela não foi verificado.

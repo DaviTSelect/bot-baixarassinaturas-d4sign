@@ -15,9 +15,10 @@ O código atual de inicialização do navegador depende de `USERPROFILE` e de ex
 
 No desktop, a interface envia comandos para `Session` por uma fila. Uma thread executa a automação e devolve eventos para a interface. A sessão mantém o navegador aberto entre as operações até logout, cancelamento ou encerramento.
 
-<<<<<<< HEAD
-O login carrega a árvore pelo menu lateral. As subpastas são descobertas conforme o usuário expande os itens; ao baixar recursivamente, a sessão expande os ramos selecionados. Para cada localização, o processador percorre os documentos, verifica arquivos existentes, baixa os pendentes e realiza uma auditoria.
-=======
+O login carrega o catálogo pelo menu lateral. As subpastas são descobertas conforme o usuário abre os itens; ao baixar recursivamente, a sessão expande os ramos selecionados. Para cada localização, o processador percorre os documentos, verifica arquivos existentes, baixa os pendentes e realiza uma auditoria.
+
+O estado do explorador fica em `ExplorerState`, separado dos widgets. A navegação não altera a seleção; os checkboxes não iniciam downloads. A busca é local ao nível aberto, e a renderização limita cada página a 40 pastas. Destino e opções técnicas ficam recolhidos para simplificar a tela.
+
 ```mermaid
 flowchart TD
     A[desktop.py: interface Tkinter] --> B[Session.run: login e descoberta]
@@ -33,7 +34,6 @@ flowchart TD
     K --> L[Cache.add: persistir sucesso]
     H --> M[Auditoria dos arquivos encontrados]
 ```
->>>>>>> ef5aff3 (Atualizando Automação)
 
 No terminal, `main.py` carrega `Config`, inicia o navegador, entra no cofre configurado e chama `process_specific_link()`. O navegador é fechado no bloco `finally`. Esse fluxo não percorre a árvore de subpastas como o desktop.
 
@@ -43,7 +43,9 @@ No terminal, `main.py` carrega `Config`, inicia o navegador, entra no cofre conf
 |---|---|
 | [desktop.py](desktop.py) | Entrada do aplicativo gráfico |
 | [main.py](main.py) | Entrada da interface por padrão; terminal com `--cli` |
-| [d4sign/desktop.py](d4sign/desktop.py) | Telas, confirmação, eventos e atualização |
+| [d4sign/desktop.py](d4sign/desktop.py) | Telas, ações de download, eventos e atualização |
+| [d4sign/explorer.py](d4sign/explorer.py) | Navegação, seleção, busca e paginação independentes da UI |
+| [d4sign/explorer_view.py](d4sign/explorer_view.py) | Widgets do explorador e tema visual |
 | [d4sign/session.py](d4sign/session.py) | Thread, comandos, sessão e downloads selecionados |
 | [d4sign/discovery.py](d4sign/discovery.py) | Leitura e expansão do menu lateral |
 | [d4sign/catalog.py](d4sign/catalog.py) | Árvore, seleção e caminhos locais |
@@ -114,6 +116,10 @@ O desktop consulta todas as situações de documentos; o terminal mantém o filt
 | Atualização falha | Repositório, versão, asset, tamanho e digest esperados |
 
 O desktop muda o diretório de trabalho para `%LOCALAPPDATA%\D4SignDesktop`. No terminal, caminhos relativos partem do diretório de onde o comando foi executado. Diagnósticos podem conter conteúdo da conta; revise-os antes de compartilhar.
+
+O desktop grava exceções da sessão em `d4sign.log` nesse diretório. A tela mostra mensagens simples, com tentativa novamente; detalhes também aparecem no painel técnico recolhido. Resultados com falhas são tratados como download com pendências, sem indicar sucesso completo. Não há percentual global de documentos: a barra de atividade é indeterminada.
+
+`refresh_level` refaz a leitura do menu e materializa somente os caminhos do nível atual e das seleções. Uma falha preserva o catálogo anterior. IDs enviados para download são conferidos novamente na sessão antes de acessar destinos ou processar arquivos.
 
 ## Atualizações e distribuição
 
