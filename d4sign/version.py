@@ -1,2 +1,2 @@
-VERSION = "1.1.8"
-REPOSITORY = "DaviTSelect/baixar-assinaturas-d4sign"
+VERSION = "1.2.0"
+REPOSITORY = "DaviTSelect/bot-baixarassinaturas-d4sign"
