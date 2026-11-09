@@ -58,6 +58,33 @@ O desktop usa `%LOCALAPPDATA%\D4SignDesktop` como diretório de trabalho para di
 
 A interface consulta o repositório definido em [version.py](d4sign/version.py). Uma versão estável mais nova é baixada automaticamente; tamanho e SHA-256 são verificados antes de abrir o instalador. Falhas na consulta são informadas e permitem continuar usando a versão atual.
 
+## Publicar nova versão
+
+> **Fluxo completo:** altere `d4sign/version.py` → commite → rode `release.bat`
+
+**1. Atualize a versão** em [d4sign/version.py](d4sign/version.py):
+
+```python
+VERSION = "1.2.0"
+```
+
+**2. Atualize `CHANGELOG.md`** com as entradas da versão.
+
+**3. Commite e envie (do diretório pai `assinaturas-d4sign/`):**
+
+```bat
+git add baixar-d4sign-centralbolsas\d4sign\version.py CHANGELOG.md
+git commit -m "release: v1.2.0"
+git push origin main
+```
+
+**4. Execute `release.bat`** (duplo clique nesta pasta):
+
+O script verifica testes, compila `D4Sign.exe` via PyInstaller, calcula SHA-256,
+cria a tag, publica a release no GitHub com o `.exe` e o `.sha256` anexados.
+
+Pré-requisito único: `gh auth login` (uma vez por máquina).
+
 ## Para desenvolvedores
 
 - [Desenvolvimento](DESENVOLVIMENTO.md): arquitetura, configuração e manutenção.
