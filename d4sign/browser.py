@@ -336,9 +336,10 @@ class D4SignBrowser:
             self._save_diagnostic(
                 "erro_login_timeout"
             )
+            # Verifica se há mensagem de erro visível na página
+            msg = self._ler_erro_login(driver)
             raise RuntimeError(
-                "Login enviado, mas não foi possível "
-                "confirmar o login."
+                msg or "Login enviado, mas não foi possível confirmar o login."
             )
 
         print(
@@ -400,6 +401,18 @@ class D4SignBrowser:
     # LOGIN CONCLUÍDO
     # =========================================================
 
+    def _ler_erro_login(self, driver) -> str:
+        """Lê a mensagem de erro do alert-danger se visível."""
+        try:
+            for el in driver.find_elements(By.CSS_SELECTOR, '.alert-danger'):
+                if el.is_displayed():
+                    msg = el.text.strip()
+                    if msg:
+                        return msg
+        except WebDriverException:
+            pass
+        return ''
+
     def _login_concluido(
         self,
         driver,
@@ -430,6 +443,11 @@ class D4SignBrowser:
             except WebDriverException:
                 pass
 
+        # Verifica alert-danger (credenciais inválidas) antes de checar o body
+        msg_alerta = self._ler_erro_login(driver)
+        if msg_alerta:
+            raise RuntimeError(msg_alerta)
+
         try:
             body = driver.find_element(
                 By.TAG_NAME,
@@ -439,6 +457,8 @@ class D4SignBrowser:
             erros = [
                 "senha inválida",
                 "senha invalida",
+                "e-mail ou senha",
+                "email ou senha",
                 "usuário ou senha",
                 "usuario ou senha",
                 "login inválido",
@@ -450,7 +470,7 @@ class D4SignBrowser:
             for erro in erros:
                 if erro in body:
                     raise RuntimeError(
-                        f"Falha no login: {erro}"
+                        f"E-mail ou senha inválidos. Verifique suas credenciais no arquivo .env."
                     )
 
         except RuntimeError:

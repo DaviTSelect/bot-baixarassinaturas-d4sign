@@ -116,7 +116,8 @@ class Session:
                         browser.close()
         except Exception as exc:
             self.report_error(exc)
-            self.events.put(('session_error', 'Não foi possível carregar sua conta. Confira suas credenciais e conexão e entre novamente.'))
+            msg = str(exc) if isinstance(exc, RuntimeError) and str(exc) else 'Não foi possível carregar sua conta. Confira suas credenciais e conexão e entre novamente.'
+            self.events.put(('session_error', msg))
         finally:
             self.browser = None
             self.config = replace(self.config, password='')
@@ -161,8 +162,13 @@ class Session:
         cache.load()
         total = Statistics()
         expected = 0
-        for index, node in enumerate(nodes, 1):
-            self.events.put(('status', f'Contando documentos {index}/{len(nodes)}: {paths[node.key]}'))
+        # Conta apenas os nós selecionados diretamente pelo usuário.
+        # O site já exibe o total acumulado da pasta (incluindo subpastas),
+        # então não somamos os filhos recursivos separadamente.
+        selected_set = set(selected)
+        nodes_para_contar = [n for n in nodes if n.key in selected_set]
+        for index, node in enumerate(nodes_para_contar, 1):
+            self.events.put(('status', f'Contando documentos {index}/{len(nodes_para_contar)}: {paths[node.key]}'))
             browser.config = replace(self.config, vault_id=node.vault_id, vault_uuid=node.uuid,
                                      location_url=node.url)
             count = browser.document_total(node.uuid)
