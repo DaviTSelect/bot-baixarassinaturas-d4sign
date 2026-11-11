@@ -42,38 +42,49 @@ def check_update():
     tag = release.get("tag_name")
     if version_tuple(tag) <= version_tuple(VERSION):
         return None
-    name = f"D4Sign-Setup-{tag.removeprefix('v')}.exe"
-    for asset in release.get("assets", []):
-        if asset.get("name") != name:
-            continue
-        validate_url(asset.get("browser_download_url"))
-        digest = asset.get("digest", "")
-        if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-fA-F]{64}", digest):
-            raise ValueError("Release sem SHA-256 válido. Publique novamente o instalador.")
-        size = asset.get("size")
-        if type(size) is not int or size <= 0:
-            raise ValueError("Tamanho do instalador inválido.")
-        return Update(tag, asset["browser_download_url"], size, digest[7:].lower())
-    raise ValueError(f"Versão {tag} disponível, mas o instalador {name} ainda não foi publicado.")
+    ver = tag.removeprefix("v")
+    exe_name = f"BaixarAssinaturasD4sign v{ver}.exe"
+    sha_name = f"BaixarAssinaturasD4sign v{ver}.sha256"
+    assets = {a.get("name"): a for a in release.get("assets", [])}
+    exe = assets.get(exe_name)
+    if not exe:
+        raise ValueError(f"Versão {tag} disponível, mas o executável {exe_name} ainda não foi publicado.")
+    url = exe.get("browser_download_url", "")
+    validate_url(url)
+    size = exe.get("size")
+    if type(size) is not int or size <= 0:
+        raise ValueError("Tamanho do executável inválido.")
+    # Lê SHA-256 do arquivo sidecar publicado junto com o exe
+    sha_asset = assets.get(sha_name)
+    sha256 = ""
+    if sha_asset:
+        sha_url = sha_asset.get("browser_download_url", "")
+        validate_url(sha_url)
+        with urlopen(request(sha_url), timeout=10) as r:
+            sha256 = r.read(128).decode().strip().split()[0].lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", sha256):
+            raise ValueError("Arquivo SHA-256 da release com formato inválido.")
+    return Update(tag, url, size, sha256)
 
 
 def download_update(update, progress=lambda value: None):
     validate_url(update.url)
     folder = Path(tempfile.mkdtemp(prefix="d4sign-update-"))
-    path = folder / "D4Sign-Setup.exe"
+    ver = update.version.removeprefix("v")
+    path = folder / f"BaixarAssinaturasD4sign v{ver}.exe"
     digest = hashlib.sha256()
     received = 0
     try:
         with urlopen(request(update.url), timeout=60) as response, path.open("wb") as output:
             while chunk := response.read(1024 * 1024):
                 received += len(chunk)
-                if received > update.size:
-                    raise ValueError("Instalador maior que o tamanho informado.")
+                if received > update.size + 1024:
+                    raise ValueError("Executável maior que o tamanho informado.")
                 output.write(chunk)
                 digest.update(chunk)
-                progress(int(received * 100 / update.size))
-        if received != update.size or digest.hexdigest() != update.sha256:
-            raise ValueError("A integridade do instalador não foi confirmada. Tente novamente.")
+                progress(int(min(received, update.size) * 100 / update.size))
+        if update.sha256 and digest.hexdigest() != update.sha256:
+            raise ValueError("A integridade do executável não foi confirmada. Tente novamente.")
         return path
     except Exception:
         path.unlink(missing_ok=True)

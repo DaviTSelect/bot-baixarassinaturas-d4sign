@@ -42,10 +42,16 @@ if ($LASTEXITCODE -ne 0) { throw 'Falha ao gerar o executavel.' }
 $exePath = "dist\$exeName.exe"
 if (-not (Test-Path $exePath)) { throw "Executavel nao encontrado: $exePath" }
 
+# Gera arquivo .sha256 ao lado do exe
+$hash = (Get-FileHash $exePath -Algorithm SHA256).Hash.ToLower()
+$shaPath = "dist\$exeName.sha256"
+Set-Content -Path $shaPath -Value "$hash  $exeName.exe" -Encoding utf8
+
 Write-Host ""
 Write-Host "======================================"
 Write-Host " Build concluido com sucesso"
 Write-Host " $exePath"
+Write-Host " SHA-256: $hash"
 Write-Host "======================================"
 
 if ($ExecutableOnly) { exit 0 }
