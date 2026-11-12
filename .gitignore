@@ -262,6 +262,7 @@ backups/
 build/
 dist/
 *.spec
+!D4Sign.spec
 .test-tmp*/
 build-*/
 
